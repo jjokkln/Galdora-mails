@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galdora E-Mail Generator</title>
+    <style>
+        /* UI Styles */
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f0f2f5; padding: 20px; color: #333; }
+        .tool-container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .controls { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); height: fit-content; }
+        .preview-area { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        
+        h2 { margin-top: 0; color: #eb5cdb; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; margin-top: 15px; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { background: linear-gradient(90deg, #d47df5 0%, #6dd5fa 100%); color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 20px; width: 100%; font-size: 16px; }
+        button:hover { opacity: 0.9; }
+        
+        .output-code { margin-top: 20px; }
+        textarea.code-box { font-family: monospace; height: 150px; background: #333; color: #0f0; font-size: 12px; }
+        
+        @media (max-width: 800px) { .tool-container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div class="tool-container">
+    <div class="controls">
+        <h2>💌 Galdora E-Mail Generator</h2>
+        
+        <label for="templateSelect">Welche E-Mail möchtest du senden?</label>
+        <select id="templateSelect" onchange="updatePreview()">
+            <option value="interview">0. Viel Erfolg beim Gespräch (Original)</option>
+            <option value="cv">1. Bitte schicke uns deinen Lebenslauf</option>
+            <option value="review">2. Bitte bewerte unsere Services</option>
+            <option value="googleform">3. Bitte fülle das Google Formular aus</option>
+            <option value="reengage">4. Bist du noch an einem Job interessiert?</option>
+        </select>
+
+        <label for="recipientName">Name des Bewerbers:</label>
+        <input type="text" id="recipientName" placeholder="z.B. Max Mustermann" oninput="updatePreview()">
+
+        <label for="senderSelect">Ansprechpartner:</label>
+        <select id="senderSelect" onchange="updatePreview()">
+            <option value="Konrad Rusczyk">Konrad Rusczyk</option>
+            <option value="Kai Fischer">Kai Fischer</option>
+            <option value="Alessandro Boehm">Alessandro Boehm</option>
+            <option value="Salim Alizai">Salim Alizai</option>
+            <option value="Lara Becker">Lara Becker</option>
+        </select>
+        
+        <div id="linkContainer" style="display:none;">
+            <label for="customLink">Link zum Formular/Profil:</label>
+            <input type="text" id="customLink" value="https://forms.google.com/example" oninput="updatePreview()">
+        </div>
+
+        <button onclick="copyCode()">HTML-Code kopieren</button>
+        
+        <div class="output-code">
+            <label>Generierter HTML Code:</label>
+            <textarea id="codeOutput" class="code-box" readonly></textarea>
+        </div>
+    </div>
+
+    <div class="preview-area">
+        <h2>Vorschau</h2>
+        <iframe id="emailPreview" style="width: 100%; height: 600px; border: 1px solid #eee;"></iframe>
+    </div>
+</div>
+
+<script>
+    // Logo URL
+    const LOGO_URL = "https://sp-ao.shortpixel.ai/client/to_auto,q_glossy,ret_img,w_1536/https://www.galdora.de/wp-content/uploads/2024/06/G-6-1536x391.webp";
+    
+    // Templates Inhalte
+    const templates = {
+        interview: {
+            subject: "Viel Erfolg bei deinem Gespräch!",
+            headline: "Viel Erfolg!",
+            body: `für dein bevorstehendes Gespräch wünschen wir dir maximale Erfolge. Du bist gut vorbereitet – geh raus und überzeuge!`
+        },
+        cv: {
+            subject: "Wir benötigen noch deinen Lebenslauf",
+            headline: "Nächster Schritt: Dein Lebenslauf",
+            body: `vielen Dank für dein Interesse. Damit wir dich unseren Partnerunternehmen bestmöglich vorstellen können, fehlt uns aktuell noch dein <strong>Lebenslauf</strong>.<br><br>
+            Bitte sende uns diesen einfach als Antwort auf diese E-Mail zu (PDF bevorzugt). Sobald wir ihn haben, prüfen wir die passenden Optionen für dich.`
+        },
+        review: {
+            subject: "Deine Meinung ist uns wichtig",
+            headline: "Wie war deine Erfahrung?",
+            body: `wir hoffen, du bist mit unserer Betreuung zufrieden. Unser Ziel ist es, jeden Tag besser zu werden – und dafür brauchen wir dein Feedback.<br><br>
+            Es dauert nur eine Minute und hilft uns enorm, unseren Service für dich und andere Bewerber zu optimieren. Klicke einfach unten auf den Bewertungs-Button.`
+        },
+        googleform: {
+            subject: "Bitte fehlende Informationen ergänzen",
+            headline: "Noch ein kleiner Schritt",
+            body: `um den Bewerbungsprozess fortzusetzen, benötigen wir noch ein paar spezifische Informationen von dir.<br><br>
+            Wir haben dazu ein kurzes Formular vorbereitet. Bitte fülle es zeitnah aus, damit es ohne Verzögerung weitergehen kann.<br><br>
+            <a href="LINK_PLACEHOLDER" style="color: #eb5cdb; font-weight: bold;">Hier geht es zum Formular</a>`
+        },
+        reengage: {
+            subject: "Bist du noch auf der Suche?",
+            headline: "Lange nichts gehört...",
+            body: `wir wollten uns kurz bei dir erkundigen: <strong>Bist du aktuell noch an neuen Jobangeboten interessiert?</strong><br><br>
+            Falls ja: Antworte kurz auf diese Mail oder ruf uns an. Wir haben aktuell wieder spannende Vakanzen, die zu deinem Profil passen könnten.<br>
+            Falls nein: Alles Gute für deinen neuen Weg!`
+        }
+    };
+
+    function getHtml(data) {
+        return `<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${data.subject}</title>
+    <style>
+        /* [Dein Original CSS] */
+        body { margin: 0; padding: 0; min-width: 100%; background-color: #f4f4f4; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+        table { border-spacing: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333333; }
+        td { padding: 0; }
+        img { border: 0; }
+        a { text-decoration: none; }
+        .galdora-pink { color: #eb5cdb; }
+        @media screen and (max-width: 600px) {
+            .container { width: 100% !important; }
+            .content { padding: 20px !important; }
+        }
+    </style>
+</head>
+<body style="background-color: #f4f4f4;">
+    <table width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding-top: 20px; padding-bottom: 20px;">
+        <tr>
+            <td align="center">
+                <table class="container" width="600" border="0" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden;">
+                    <tr>
+                        <td height="10" style="background: linear-gradient(90deg, #d47df5 0%, #6dd5fa 100%); background-color: #d47df5;"></td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding: 30px 20px; background-color: #ffffff; border-bottom: 1px solid #eeeeee;">
+                            <img src="${LOGO_URL}" alt="Galdora Personalmanagement" width="300" style="display: block; max-width: 100%; height: auto; color: #333;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="content" style="padding: 40px 40px 30px 40px; text-align: left;">
+                            <h1 style="color: #000000; font-size: 24px; margin: 0 0 20px 0;">${data.headline} <span style="color: #eb5cdb;">🍀</span></h1>
+                            
+                            <p style="font-size: 16px; line-height: 1.6; color: #333333; margin-bottom: 20px;">
+                                Hallo ${data.recipient},
+                            </p>
+                            
+                            <p style="font-size: 16px; line-height: 1.6; color: #333333; margin-bottom: 20px;">
+                                ${data.bodyContent}
+                            </p>
+
+                            <p style="font-size: 16px; line-height: 1.6; color: #333333; margin-bottom: 20px;">
+                                Danke für dein Vertrauen in uns. Falls noch Fragen offen sind: <br>
+                                <strong style="color: #eb5cdb;">Melde dich jederzeit kurz bei uns.</strong>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0 40px 40px 40px;">
+                            <p style="font-size: 16px; line-height: 1.6; color: #333333; margin: 0;">
+                                Liebe Grüße,<br>
+                                <strong>${data.sender}</strong><br>
+                                <span style="font-size: 14px; color: #666;">Galdora Personalmanagement</span>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding: 30px 20px; background-color: #1a1a1a; color: #ffffff;">
+                            <table width="100%" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center">
+                                        <p style="font-size: 15px; margin: 0 0 20px 0; color: #ffffff;">Zufrieden mit dem Prozess?</p>
+                                        <table border="0" cellspacing="0" cellpadding="0">
+                                            <tr>
+                                                <td align="center" style="border-radius: 4px;" bgcolor="#d47df5">
+                                                    <a href="https://share.google/MHcWTyKOYQHP9M2Ry" target="_blank" style="font-size: 16px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 4px; border: 1px solid #d47df5; display: inline-block; background: linear-gradient(90deg, #d47df5 0%, #6dd5fa 100%);">
+                                                        Jetzt bewerten
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr><td height="25"></td></tr>
+                                <tr>
+                                    <td align="center">
+                                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=ffffff&bgcolor=1a1a1a&data=https%3A%2F%2Fshare.google%2FMHcWTyKOYQHP9M2Ry" alt="QR Code" width="120" height="120" style="display: block; border: 2px solid #eb5cdb; border-radius: 8px; padding: 5px;">
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding: 20px; background-color: #f4f4f4; color: #999999; font-size: 12px;">
+                            &copy; 2025 Galdora Personalmanagement GmbH & Co. KG<br>
+                            <a href="https://www.galdora.de" style="color: #999999; text-decoration: none;">www.galdora.de</a>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
+    }
+
+    function updatePreview() {
+        const type = document.getElementById('templateSelect').value;
+        const recipient = document.getElementById('recipientName').value || "[Name]";
+        const sender = document.getElementById('senderSelect').value;
+        const customLink = document.getElementById('customLink').value;
+
+        // Toggle Link Input
+        const linkContainer = document.getElementById('linkContainer');
+        linkContainer.style.display = (type === 'googleform') ? 'block' : 'none';
+
+        let content = templates[type];
+        let bodyText = content.body;
+
+        if (type === 'googleform') {
+            bodyText = bodyText.replace('LINK_PLACEHOLDER', customLink);
+        }
+
+        const emailData = {
+            subject: content.subject,
+            headline: content.headline,
+            bodyContent: bodyText,
+            recipient: recipient,
+            sender: sender
+        };
+
+        const finalHtml = getHtml(emailData);
+
+        // Update Code Box
+        document.getElementById('codeOutput').value = finalHtml;
+
+        // Update Preview via Blob (Sichere Methode)
+        const iframe = document.getElementById('emailPreview');
+        const blob = new Blob([finalHtml], { type: 'text/html' });
+        iframe.src = URL.createObjectURL(blob);
+    }
+
+    function copyCode() {
+        const copyText = document.getElementById("codeOutput");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999); 
+        navigator.clipboard.writeText(copyText.value);
+        alert("HTML Code wurde in die Zwischenablage kopiert!");
+    }
+
+    window.onload = function() {
+        updatePreview();
+    };
+</script>
+
+</body>
+</html>
